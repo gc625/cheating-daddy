@@ -721,6 +721,8 @@ ipcRenderer.on('save-conversation-turn', async (event, data) => {
     }
 });
 
+
+
 // Initialize conversation storage when renderer loads
 initConversationStorage().catch(console.error);
 
@@ -783,6 +785,20 @@ const cheddar = {
     // Platform detection
     isLinux: isLinux,
     isMacOS: isMacOS,
+
+    // Screen bounding box functions
+    drawBoundingBox: async (xmin, ymin, xmax, ymax, options = {}) => {
+        const result = await ipcRenderer.invoke('draw-screen-bounding-box', xmin, ymin, xmax, ymax, options);
+        return result.success ? result.boxId : null;
+    },
+    removeBoundingBox: async (boxId) => {
+        const result = await ipcRenderer.invoke('remove-screen-bounding-box', boxId);
+        return result.success;
+    },
+    clearAllBoundingBoxes: async () => {
+        const result = await ipcRenderer.invoke('clear-all-screen-bounding-boxes');
+        return result.success;
+    },
 };
 
 // Make it globally available

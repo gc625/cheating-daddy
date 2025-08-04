@@ -3,6 +3,7 @@ const { BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const { saveDebugAudio } = require('../audioUtils');
 const { getSystemPrompt } = require('./prompts');
+const { drawScreenBoundingBox, removeScreenBoundingBox, clearAllScreenBoundingBoxes, closeScreenOverlay } = require('./screenOverlay');
 
 // Conversation tracking variables
 let currentSessionId = null;
@@ -349,6 +350,16 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
 
         isInitializingSession = false;
         sendToRenderer('session-initializing', false);
+        
+        
+        // Test screen bounding box functionality after session initialization
+        drawScreenBoundingBox(100, 100, 400, 300, {
+            color: '#00ff00',
+            width: 3,
+            duration: 5000,
+            label: 'Session Initialized!'
+        });
+        
         return session;
     } catch (error) {
         console.error('Failed to initialize Gemini session:', error);
@@ -646,6 +657,9 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 geminiSessionRef.current = null;
             }
 
+            // Close screen overlay
+            closeScreenOverlay();
+
             return { success: true };
         } catch (error) {
             console.error('Error closing session:', error);
@@ -681,6 +695,37 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             return { success: true };
         } catch (error) {
             console.error('Error updating Google Search setting:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Screen overlay IPC handlers
+    ipcMain.handle('draw-screen-bounding-box', async (event, xmin, ymin, xmax, ymax, options = {}) => {
+        try {
+            const boxId = drawScreenBoundingBox(xmin, ymin, xmax, ymax, options);
+            return { success: true, boxId };
+        } catch (error) {
+            console.error('Error drawing screen bounding box:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('remove-screen-bounding-box', async (event, boxId) => {
+        try {
+            removeScreenBoundingBox(boxId);
+            return { success: true };
+        } catch (error) {
+            console.error('Error removing screen bounding box:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('clear-all-screen-bounding-boxes', async (event) => {
+        try {
+            clearAllScreenBoundingBoxes();
+            return { success: true };
+        } catch (error) {
+            console.error('Error clearing screen bounding boxes:', error);
             return { success: false, error: error.message };
         }
     });
