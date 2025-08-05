@@ -197,7 +197,7 @@ function hideScreenOverlay() {
  */
 function drawScreenBoundingBox(xmin, ymin, xmax, ymax, options = {}) {
     const boxId = `bbox-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const duration = options.duration || 3000;
+    const duration = options.duration !== undefined ? options.duration : 0; // Default to permanent for development
     
     // Store bounding box info
     boundingBoxes.set(boxId, {
@@ -214,11 +214,14 @@ function drawScreenBoundingBox(xmin, ymin, xmax, ymax, options = {}) {
         });
     }
     
-    // Auto-remove after duration (if specified)
+    // Auto-remove after duration (if specified) - DISABLED FOR DEVELOPMENT
     if (duration > 0) {
-        setTimeout(() => {
-            removeScreenBoundingBox(boxId);
-        }, duration);
+        console.log(`[TIMER] Bounding box ${boxId} scheduled for removal in ${duration}ms - DISABLED FOR DEVELOPMENT`);
+        // setTimeout(() => {
+        //     removeScreenBoundingBox(boxId);
+        // }, duration);
+    } else {
+        console.log(`[PERMANENT] Bounding box ${boxId} set to permanent (duration: ${duration})`);
     }
     
     console.log(`Drew screen bounding box: (${xmin}, ${ymin}) to (${xmax}, ${ymax})`);
@@ -230,6 +233,10 @@ function drawScreenBoundingBox(xmin, ymin, xmax, ymax, options = {}) {
  */
 function removeScreenBoundingBox(boxId) {
     if (boundingBoxes.has(boxId)) {
+        console.log(`[REMOVE] === REMOVING BOUNDING BOX ===`);
+        console.log(`Box ID: ${boxId}`);
+        console.log(`Call stack:`, new Error().stack);
+        
         boundingBoxes.delete(boxId);
         
         if (overlayWindow) {

@@ -557,7 +557,10 @@ export class AssistantView extends LitElement {
     }
 
     updateResponseContent() {
-        console.log('updateResponseContent called');
+        console.log('[UI] === UPDATE RESPONSE CONTENT CALLED ===');
+        console.log('Responses from parent:', this.responses);
+        console.log('Current response index from parent:', this.currentResponseIndex);
+        
         const container = this.shadowRoot.querySelector('#responseContainer');
         if (container) {
             const currentResponse = this.getCurrentResponse();

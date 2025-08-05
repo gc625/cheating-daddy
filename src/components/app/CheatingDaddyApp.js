@@ -148,9 +148,11 @@ export class CheatingDaddyApp extends LitElement {
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
             ipcRenderer.on('update-response', (_, response) => {
+                console.log('[FRONTEND] === RECEIVED RESPONSE ===', response);
                 this.setResponse(response);
             });
             ipcRenderer.on('update-status', (_, status) => {
+                console.log('[FRONTEND] === RECEIVED STATUS ===', status);
                 this.setStatus(status);
             });
             ipcRenderer.on('click-through-toggled', (_, isEnabled) => {
@@ -180,6 +182,13 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     setResponse(response) {
+        console.log('[RESPONSE] === SET RESPONSE CALLED ===');
+        console.log('Response:', response);
+        console.log('Current responses array:', this.responses);
+        console.log('Current response index:', this.currentResponseIndex);
+        console.log('Awaiting new response:', this._awaitingNewResponse);
+        console.log('Current response is complete:', this._currentResponseIsComplete);
+        
         // Check if this looks like a filler response (very short responses to hmm, ok, etc)
         const isFillerResponse =
             response.length < 30 &&
@@ -188,6 +197,8 @@ export class CheatingDaddyApp extends LitElement {
                 response.toLowerCase().includes('next') ||
                 response.toLowerCase().includes('go on') ||
                 response.toLowerCase().includes('continue'));
+
+        console.log('Is filler response:', isFillerResponse);
 
         if (this._awaitingNewResponse || this.responses.length === 0) {
             // Always add as new response when explicitly waiting for one
@@ -208,7 +219,12 @@ export class CheatingDaddyApp extends LitElement {
             this._currentResponseIsComplete = false;
             console.log('[setResponse] Added response as new:', response);
         }
+        
+        console.log('Updated responses array:', this.responses);
+        console.log('Updated response index:', this.currentResponseIndex);
+        
         this.shouldAnimateResponse = true;
+        console.log('Calling requestUpdate()');
         this.requestUpdate();
     }
 

@@ -34,10 +34,31 @@ let maxReconnectionAttempts = 3;
 let reconnectionDelay = 2000; // 2 seconds between attempts
 let lastSessionParams = null;
 
+let mainWindowRef = null;
+
+function setMainWindow(window) {
+    mainWindowRef = window;
+}
+
 function sendToRenderer(channel, data) {
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.length > 0) {
-        windows[0].webContents.send(channel, data);
+    console.log('[IPC] === SEND TO RENDERER ===');
+    console.log('Channel:', channel);
+    console.log('Data:', data);
+    
+    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+        console.log('[IPC] Sending to main window via webContents.send');
+        mainWindowRef.webContents.send(channel, data);
+    } else {
+        // Fallback to first window if main window ref is not available
+        const windows = BrowserWindow.getAllWindows();
+        console.log('[WARN] Main window ref not available, using fallback. Windows available:', windows.length);
+        
+        if (windows.length > 0) {
+            console.log('[IPC] Sending to first available window via webContents.send');
+            windows[0].webContents.send(channel, data);
+        } else {
+            console.log('[ERROR] No windows available to send to');
+        }
     }
 }
 
@@ -109,6 +130,56 @@ async function sendReconnectionContext() {
     }
 }
 
+// Function tool declarations
+const drawScreenBoundingBoxTool = {
+    name: "drawScreenBoundingBox",
+    description: "Draw a bounding box on the screen overlay. Coordinates should be in pixels in .", // fix this later
+    parameters: {
+        type: "object",
+        properties: {
+            xmin: {
+                type: "number",
+                description: "Left X coordinate in pixels"
+            },
+            ymin: {
+                type: "number", 
+                description: "Top Y coordinate in pixels"
+            },
+            xmax: {
+                type: "number",
+                description: "Right X coordinate in pixels"
+            },
+            ymax: {
+                type: "number",
+                description: "Bottom Y coordinate in pixels"
+            },
+            options: {
+                type: "object",
+                description: "Optional styling and behavior options",
+                properties: {
+                    color: {
+                        type: "string",
+                        description: "Border color in hex format (e.g., '#ff0000' for red)"
+                    },
+                    width: {
+                        type: "number",
+                        description: "Border width in pixels"
+                    },
+                    duration: {
+                        type: "number",
+                        description: "Duration in milliseconds before auto-removal (0 for permanent, defaults to permanent for development)"
+                    },
+                    label: {
+                        type: "string",
+                        description: "Optional text label to display with the bounding box"
+                    }
+                }
+            }
+        },
+        required: ["xmin", "ymin", "xmax", "ymax"]
+    }
+};
+
 async function getEnabledTools() {
     const tools = [];
 
@@ -122,6 +193,10 @@ async function getEnabledTools() {
     } else {
         console.log('Google Search tool disabled');
     }
+
+    // Add screen bounding box tool
+    tools.push({ functionDeclarations: [drawScreenBoundingBoxTool] });
+    console.log('Added drawScreenBoundingBox tool');
 
     return tools;
 }
@@ -157,6 +232,90 @@ async function getStoredSetting(key, defaultValue) {
     }
     console.log('Using default value for', key, ':', defaultValue);
     return defaultValue;
+}
+
+// Handle function tool calls
+function handleDrawScreenBoundingBox(args) {
+    console.log('[DRAW] Drawing screen bounding box with args:', args);
+    
+    try {
+        const { xmin, ymin, xmax, ymax, options = {} } = args;
+        
+        // Validate coordinates
+        if (typeof xmin !== 'number' || typeof ymin !== 'number' || 
+            typeof xmax !== 'number' || typeof ymax !== 'number') {
+            throw new Error('Invalid coordinates: all values must be numbers');
+        }
+        
+        if (xmin >= xmax || ymin >= ymax) {
+            throw new Error('Invalid coordinates: xmin must be < xmax and ymin must be < ymax');
+        }
+        
+        // Draw the bounding box
+        const boxId = drawScreenBoundingBox(xmin, ymin, xmax, ymax, options);
+        
+        console.log(`[SUCCESS] Successfully drew bounding box: ${boxId}`);
+        
+        return {
+            result: "success",
+            boxId: boxId,
+            message: `Successfully drew bounding box at (${xmin}, ${ymin}) to (${xmax}, ${ymax})`
+        };
+    } catch (error) {
+        console.error('[ERROR] Error drawing bounding box:', error);
+        return {
+            result: "error",
+            message: `Failed to draw bounding box: ${error.message}`
+        };
+    }
+}
+
+async function handleToolCalls(toolCall) {
+    if (!global.geminiSessionRef?.current) {
+        console.error('No active Gemini session for tool calls');
+        return;
+    }
+
+    try {
+        console.log('[TOOL] === TOOL CALL RECEIVED ===');
+        console.log('Tool call details:', toolCall);
+        
+        const functionResponses = [];
+        
+        for (const fc of toolCall.functionCalls) {
+            console.log(`[TOOL] Tool called: ${fc.name}`);
+            console.log('Arguments:', fc.args);
+            
+            let response;
+            
+            switch (fc.name) {
+                case 'drawScreenBoundingBox':
+                    response = handleDrawScreenBoundingBox(fc.args);
+                    break;
+                default:
+                    console.warn(`Unknown function called: ${fc.name}`);
+                    response = {
+                        result: "error",
+                        message: `Unknown function: ${fc.name}`
+                    };
+            }
+            
+            functionResponses.push({
+                id: fc.id,
+                name: fc.name,
+                response: response
+            });
+        }
+
+        console.log('[TOOL] Sending tool responses:', functionResponses);
+        await global.geminiSessionRef.current.sendToolResponse({ 
+            functionResponses: functionResponses 
+        });
+        console.log('[TOOL] Tool responses sent successfully');
+        
+    } catch (error) {
+        console.error('[ERROR] Error handling tool calls:', error);
+    }
 }
 
 async function attemptReconnection() {
@@ -249,28 +408,40 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                     sendToRenderer('update-status', 'Live session connected');
                 },
                 onmessage: function (message) {
-                    console.log('----------------', message);
+                    console.log('[MSG] === MESSAGE RECEIVED ===', message);
 
                     if (message.serverContent?.inputTranscription?.results) {
                         currentTranscription += formatSpeakerResults(message.serverContent.inputTranscription.results);
+                        console.log('[TRANSCRIPT] Updated transcription:', currentTranscription);
                     }
 
                     // Handle AI model response
                     if (message.serverContent?.modelTurn?.parts) {
+                        console.log('[AI] Model turn parts:', message.serverContent.modelTurn.parts);
                         for (const part of message.serverContent.modelTurn.parts) {
-                            console.log(part);
+                            console.log('Processing part:', part);
                             if (part.text) {
                                 messageBuffer += part.text;
+                                console.log('[RESPONSE] Sending response to renderer:', messageBuffer);
                                 sendToRenderer('update-response', messageBuffer);
                             }
                         }
                     }
 
+                    // Handle tool calls - but don't interfere with normal response flow
+                    if (message.toolCall) {
+                        console.log('[TOOL] Tool call detected, handling...');
+                        handleToolCalls(message.toolCall);
+                        // Don't return here - continue processing other parts of the message
+                    }
+
                     if (message.serverContent?.generationComplete) {
+                        console.log('[COMPLETE] Generation complete, final response:', messageBuffer);
                         sendToRenderer('update-response', messageBuffer);
 
                         // Save conversation turn when we have both transcription and AI response
                         if (currentTranscription && messageBuffer) {
+                            console.log('[SAVE] Saving conversation turn');
                             saveConversationTurn(currentTranscription, messageBuffer);
                             currentTranscription = ''; // Reset for next turn
                         }
@@ -279,6 +450,7 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
                     }
 
                     if (message.serverContent?.turnComplete) {
+                        console.log('[TURN] Turn complete');
                         sendToRenderer('update-status', 'Listening...');
                     }
                 },
@@ -353,12 +525,12 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
         
         
         // Test screen bounding box functionality after session initialization
-        drawScreenBoundingBox(100, 100, 400, 300, {
-            color: '#00ff00',
-            width: 3,
-            duration: 5000,
-            label: 'Session Initialized!'
-        });
+        // drawScreenBoundingBox(100, 100, 400, 300, {
+        //     color: '#00ff00',
+        //     width: 3,
+        //     duration: 0, // Permanent for development
+        //     label: 'Session Initialized!'
+        // });
         
         return session;
     } catch (error) {
@@ -736,6 +908,7 @@ module.exports = {
     getEnabledTools,
     getStoredSetting,
     sendToRenderer,
+    setMainWindow,
     initializeNewSession,
     saveConversationTurn,
     getCurrentSessionData,
@@ -748,4 +921,6 @@ module.exports = {
     setupGeminiIpcHandlers,
     attemptReconnection,
     formatSpeakerResults,
+    handleDrawScreenBoundingBox,
+    handleToolCalls,
 };

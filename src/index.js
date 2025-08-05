@@ -4,7 +4,7 @@ if (require('electron-squirrel-startup')) {
 
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
-const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
+const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer, setMainWindow } = require('./utils/gemini');
 const { initializeRandomProcessNames } = require('./utils/processRandomizer');
 const { applyAntiAnalysisMeasures } = require('./utils/stealthFeatures');
 const { getLocalConfig, writeConfig } = require('./config');
@@ -17,6 +17,7 @@ const randomNames = initializeRandomProcessNames();
 
 function createMainWindow() {
     mainWindow = createWindow(sendToRenderer, geminiSessionRef, randomNames);
+    setMainWindow(mainWindow);
     return mainWindow;
 }
 
