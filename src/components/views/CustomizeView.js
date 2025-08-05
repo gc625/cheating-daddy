@@ -491,6 +491,11 @@ export class CustomizeView extends LitElement {
                 name: 'Exam Assistant',
                 description: 'Academic assistance for test-taking and exam questions',
             },
+            {
+                value: 'howy',
+                name: 'Howy',
+                description: 'Help with learning any software',
+            },
         ];
     }
 

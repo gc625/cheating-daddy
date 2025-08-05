@@ -443,6 +443,10 @@ export class HelpView extends LitElement {
                             <div class="profile-name">Exam Assistant</div>
                             <div class="profile-description">Academic assistance for test-taking and exam questions</div>
                         </div>
+                        <div class="profile-item">
+                            <div class="profile-name">Howy</div>
+                            <div class="profile-description">Help with learning any software</div>
+                        </div>
                     </div>
                 </div>
 
