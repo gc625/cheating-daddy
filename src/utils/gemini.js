@@ -133,26 +133,27 @@ async function sendReconnectionContext() {
 // Function tool declarations
 const drawScreenBoundingBoxTool = {
     name: "drawScreenBoundingBox",
-    description: "Draw a bounding box on the screen overlay. Coordinates should be in pixels in .", // fix this later
+    description: "Draw a bounding box on the screen overlay. Returns normalized coordinates [ymin, xmin, ymax, xmax] from 0-1000. always label the boxes",
     parameters: {
         type: "object",
         properties: {
-            xmin: {
-                type: "number",
-                description: "Left X coordinate in pixels"
-            },
             ymin: {
                 type: "number", 
                 description: "Top Y coordinate in pixels"
             },
-            xmax: {
+            xmin: {
                 type: "number",
-                description: "Right X coordinate in pixels"
+                description: "Left X coordinate in pixels"
             },
             ymax: {
                 type: "number",
                 description: "Bottom Y coordinate in pixels"
             },
+            xmax: {
+                type: "number",
+                description: "Right X coordinate in pixels"
+            },
+
             options: {
                 type: "object",
                 description: "Optional styling and behavior options",
@@ -176,7 +177,7 @@ const drawScreenBoundingBoxTool = {
                 }
             }
         },
-        required: ["xmin", "ymin", "xmax", "ymax"]
+        required: ["ymin","xmin", "ymax", "xmax"]
     }
 };
 
@@ -239,7 +240,7 @@ function handleDrawScreenBoundingBox(args) {
     console.log('[DRAW] Drawing screen bounding box with args:', args);
     
     try {
-        const { xmin, ymin, xmax, ymax, options = {} } = args;
+        const { ymin, xmin, ymax, xmax, options = {} } = args;
         
         // Validate coordinates
         if (typeof xmin !== 'number' || typeof ymin !== 'number' || 
@@ -251,15 +252,31 @@ function handleDrawScreenBoundingBox(args) {
             throw new Error('Invalid coordinates: xmin must be < xmax and ymin must be < ymax');
         }
         
-        // Draw the bounding box
-        const boxId = drawScreenBoundingBox(xmin, ymin, xmax, ymax, options);
+        // Get screen dimensions
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
+        
+        console.log(`[DRAW] Screen dimensions: ${screenWidth}x${screenHeight}`);
+        console.log(`[DRAW] Normalized coordinates: (${xmin}, ${ymin}) to (${xmax}, ${ymax})`);
+        
+        // Convert normalized coordinates (0-1000) to pixel coordinates
+        const pixelXmin = Math.round((xmin / 1000) * screenWidth);
+        const pixelYmin = Math.round((ymin / 1000) * screenHeight);
+        const pixelXmax = Math.round((xmax / 1000) * screenWidth);
+        const pixelYmax = Math.round((ymax / 1000) * screenHeight);
+        
+        console.log(`[DRAW] Pixel coordinates: (${pixelXmin}, ${pixelYmin}) to (${pixelXmax}, ${pixelYmax})`);
+        
+        // Draw the bounding box with pixel coordinates
+        const boxId = drawScreenBoundingBox(pixelXmin, pixelYmin, pixelXmax, pixelYmax, options);
         
         console.log(`[SUCCESS] Successfully drew bounding box: ${boxId}`);
         
         return {
             result: "success",
             boxId: boxId,
-            message: `Successfully drew bounding box at (${xmin}, ${ymin}) to (${xmax}, ${ymax})`
+            message: `Successfully drew bounding box at normalized (${xmin}, ${ymin}) to (${xmax}, ${ymax}) = pixels (${pixelXmin}, ${pixelYmin}) to (${pixelXmax}, ${pixelYmax})`
         };
     } catch (error) {
         console.error('[ERROR] Error drawing bounding box:', error);
@@ -761,6 +778,21 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
             }
 
             process.stdout.write('!');
+            // Save image to debug C:\Users\gabriel\cheating-daddy\debug
+            // save image here
+            if (true) {
+                const fs = require('fs');
+                const path = require('path');
+                const debugDir = 'C:\\Users\\gabriel\\cheating-daddy\\debug';
+                if (!fs.existsSync(debugDir)) {
+                    fs.mkdirSync(debugDir, { recursive: true });
+                }
+                const filename = `image_${Date.now()}.jpg`;
+                const filePath = path.join(debugDir, filename);
+                fs.writeFileSync(filePath, buffer);
+                console.log(`Saved debug image to ${filePath}`);
+            }
+
             await geminiSessionRef.current.sendRealtimeInput({
                 media: { data: data, mimeType: 'image/jpeg' },
             });

@@ -549,6 +549,28 @@ async function captureScreenshot(imageQuality = 'medium', isManual = false) {
     );
 }
 
+async function captureScreenshotRegion(x, y, width, height, imageQuality = 'medium') {
+    if (!hiddenVideo) return;
+    
+    // Create a smaller canvas for the cropped region
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = width;
+    cropCanvas.height = height;
+    const cropContext = cropCanvas.getContext('2d');
+    
+    // Draw only the specified region from the video
+    cropContext.drawImage(
+        hiddenVideo,
+        x, y, width, height,  // Source rectangle
+        0, 0, width, height   // Destination rectangle
+    );
+    // Convert to blob and send as usual
+    cropCanvas.toBlob(async blob => {
+        // ... same blob processing as current captureScreenshot
+    }, 'image/jpeg', qualityValue);
+
+}
+
 async function captureManualScreenshot(imageQuality = null) {
     console.log('Manual screenshot triggered');
     const quality = imageQuality || currentImageQuality;

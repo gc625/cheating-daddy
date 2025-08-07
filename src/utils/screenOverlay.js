@@ -207,6 +207,8 @@ function drawScreenBoundingBox(xmin, ymin, xmax, ymax, options = {}) {
     // Ensure overlay is visible
     showScreenOverlay();
     
+    console.log(`[DRAW] options: ${options}`)
+
     // Send draw command to overlay window
     if (overlayWindow) {
         overlayWindow.webContents.send('draw-bounding-box', {
